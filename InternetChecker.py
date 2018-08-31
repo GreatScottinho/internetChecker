@@ -2,36 +2,62 @@ import config
 import passwordConfig
 
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.keys import Keys
+import logging
 import time
+import sys
+
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class InternetChecker(object):
 
     logged_in = False
     webdriver_open = False
-    def __init__(self):
+    browser_kinds = ["chrome", "firefox"]
+    def __init__(self, browser="chrome", headless=True, slowdown=0):
 
-        self.capabilities = DesiredCapabilities().FIREFOX
-        # self.capabilities = DesiredCapabilities().CHROME
-        # self.capabilities = DesiredCapabilities().HTMLUNITWITHJS
-        self.capabilities["pageLoadStrategy"] = "eager"
-        # self.capabilities["pageLoadStrategy"] = "normal"
-        
-        self.driver = webdriver.Firefox(desired_capabilities=self.capabilities)
-        # self.driver = webdriver.Chrome(desired_capabilities=self.capabilities)
-        # self.driver = webdriver.PhantomJS(desired_capabilities=self.capabilities)
+        # Used so I can see steps taken
+        self.slowdown = slowdown
+
+        if (browser == "chrome"):
+            self.capabilities = DesiredCapabilities().CHROME
+
+            options = Options()
+            if (headless):
+                options.add_argument('--headless')
+                options.add_argument('--disable-gpu') 
+
+            self.driver = webdriver.Chrome("webdrivers/chromedriver_linux64", 
+                                            chrome_options=options)
+
+        elif (browser == "firefox"):
+            self.capabilities = DesiredCapabilities().FIREFOX
+            # self.capabilities["pageLoadStrategy"] = "eager"
+            # self.capabilities["pageLoadStrategy"] = "normal"
+            
+            self.driver = webdriver.Firefox(desired_capabilities=self.capabilities)
+
+        else:
+            logger.error("browser should be either chrome or firefox")
+            raise Exception("Invalid browser kind supplied to "
+                            "InternetChecker: {} not in {}".format(browser, self.browser_kinds))
+            
         self.webdriver_open = True
-
+        logger.debug("Returning from InternetChecker init")
         return
 
         
     def __login(self):
+        logger.info("Logging in...")
 
         # Get the base router url
         self.driver.get(config.ROUTER_URL)
 
-        time.sleep(5)
+        # Give it time to load
+        time.sleep(1)
 
         # Get elements and clear contents
         usernameElem = self.driver.find_element_by_name("admin_user_name")
@@ -49,16 +75,16 @@ class InternetChecker(object):
         # This assertion doesnt work how you think
         try:
             assert "Login Failed" not in self.driver.page_source
-            success = True
             self.logged_in = True
-        except AssertionError as ae:
-            print("Could not login: {}".format(ae))
-            success = False
+            logger.info("Login success!")
+        except AssertionError:
+            raise CouldNotLoginException("Could not login, check username and password")
 
-        time.sleep(5)
-        return success
+        time.sleep(1)
+        return self.logged_in
 
     def reboot(self):
+        logger.info("Rebooting")
 
         # Go to the utilities section and click the reboot button
         self.__goto_utilities()
@@ -74,13 +100,15 @@ class InternetChecker(object):
         return 
 
     def get_connection_status(self):
+        logger.info("Getting connection status")
 
-        self.__goto_modem_status()
+        if (not self.__goto_modem_status()):
+            raise CouldNotLoginException("Could not log in, check username and password")
 
         CenturyLink_DSL = self.driver.find_element_by_id("ISP_status1")
         internet = self.driver.find_element_by_id("ISP_status2")
 
-        connection_staus = {"dsl": CenturyLink_DSL.text,
+        connection_status = {"dsl": CenturyLink_DSL.text,
                             "internet": internet.text}
 
         modem_status_broadband_table = self.driver.find_element_by_id("broadband_table")
@@ -91,11 +119,13 @@ class InternetChecker(object):
 
             # If there are columns add them as long as they're not empty
             if (len(columns) > 0 and (columns[0].text != "" or columns[1].text != "")):
-                connection_staus[columns[0].text.replace(" ", "_").lower()] = columns[1].text
+                connection_status[columns[0].text.replace(" ", "_").lower()] = columns[1].text
 
-        return connection_staus
+        logger.debug(connection_status)
+        return connection_status
     
     def connect(self):
+        logger.info("Connecting")
 
         self.__goto_modem_status()
 
@@ -106,31 +136,23 @@ class InternetChecker(object):
         for button in buttons:
             if (button.text == "Connect"):
                 button.send_keys(Keys.RETURN)
+                logger.info("Clicked Connect")
                 return
 
         return
 
-    def __check_login(self):
-
-        # Check if logged in. If not try to log in
-        print("Logged in: {}".format(self.logged_in))
-        if (not self.logged_in):
-            self.__login()
-
-            if (not self.logged_in):
-                print("Could not login.")
-                return self.logged_in
-            else:
-                print("Log in success: {}".format(self.logged_in))
-
-        return self.logged_in
-
-
+        
     def __goto_modem_status(self):
+        logger.info("Going to modem status")
 
         # Check if logged in 
-        if (not self.__check_login()):
-            return self.logged_in
+        # if (not self.__check_login()):
+        #     return self.logged_in
+        
+        if (not self.logged_in):
+            logger.info("Not logged in, attempting to login")
+
+            self.__login()
 
         # Have the driver get the modem status page
         self.driver.get(config.ROUTER_URL + config.MODEM_STATUS_LINK_HREF)
@@ -139,17 +161,24 @@ class InternetChecker(object):
 
 
     def __goto_quick_setup(self):
+        logger.info("Going to quick setup")
         pass
 
 
     def __goto_wireless_setup(self):
+        logger.info("Going to wireless setup")
         pass
 
 
     def __goto_utilities(self):
+        logger.info("Going to utilities")
 
         # Check if logged in 
-        if (not self.__check_login()):
+        # if (not self.__check_login()):
+        #     return self.logged_in
+        
+        if (not self.logged_in):
+            logger.info("Not logged in, attempting to login")
             return self.logged_in
 
         self.driver.get(config.ROUTER_URL + config.UTILITIES_LINK_HREF)
@@ -159,9 +188,15 @@ class InternetChecker(object):
 
 
     def __goto_advanced_setup(self):
+        logger.info("Going to advanced setup")
         pass
 
 
     def tear_down(self):
+        logger.info("Tearing down InternetChecker")
         self.driver.close()
         self.webdriver_open = False
+
+
+class CouldNotLoginException(Exception):
+    pass

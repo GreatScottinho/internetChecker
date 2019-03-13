@@ -1,16 +1,19 @@
-import config
-import passwordConfig
+import logging
+import time
+import sys
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.keys import Keys
-import logging
-import time
-import sys
+
+import config
+import credentials
+
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class InternetChecker(object):
 
@@ -49,8 +52,7 @@ class InternetChecker(object):
         logger.debug("Returning from InternetChecker init")
         return
 
-        
-    def __login(self):
+    def _login(self):
         logger.info("Logging in...")
 
         # Get the base router url
@@ -60,17 +62,17 @@ class InternetChecker(object):
         time.sleep(1)
 
         # Get elements and clear contents
-        usernameElem = self.driver.find_element_by_name("admin_user_name")
-        passwordElem = self.driver.find_element_by_name("admin_password")
-        usernameElem.clear()
-        passwordElem.clear()
+        username_element = self.driver.find_element_by_name("admin_user_name")
+        password_element = self.driver.find_element_by_name("admin_password")
+        username_element.clear()
+        password_element.clear()
 
         # Set field username and password
-        usernameElem.send_keys(passwordConfig.USERNAME)
-        passwordElem.send_keys(passwordConfig.PASSWORD)
+        username_element.send_keys(credentials.USERNAME)
+        password_element.send_keys(credentials.PASSWORD)
 
         # Press RETURN on password field
-        passwordElem.send_keys(Keys.RETURN)
+        password_element.send_keys(Keys.RETURN)
 
         # This assertion doesnt work how you think
         try:
@@ -87,7 +89,7 @@ class InternetChecker(object):
         logger.info("Rebooting")
 
         # Go to the utilities section and click the reboot button
-        self.__goto_utilities()
+        self._goto_utilities()
         reboot_button = self.driver.find_element_by_class_name("btn.reboot_btn")
         reboot_button.send_keys(Keys.RETURN)
 
@@ -102,13 +104,13 @@ class InternetChecker(object):
     def get_connection_status(self):
         logger.info("Getting connection status")
 
-        if (not self.__goto_modem_status()):
+        if (not self._goto_modem_status()):
             raise CouldNotLoginException("Could not log in, check username and password")
 
-        CenturyLink_DSL = self.driver.find_element_by_id("ISP_status1")
+        century_link_dsl = self.driver.find_element_by_id("ISP_status1")
         internet = self.driver.find_element_by_id("ISP_status2")
 
-        connection_status = {"dsl": CenturyLink_DSL.text,
+        connection_status = {"dsl": century_link_dsl.text,
                             "internet": internet.text}
 
         modem_status_broadband_table = self.driver.find_element_by_id("broadband_table")
@@ -127,7 +129,7 @@ class InternetChecker(object):
     def connect(self):
         logger.info("Connecting")
 
-        self.__goto_modem_status()
+        self._goto_modem_status()
 
         # Get the bottons on the modem status page
         buttons = self.driver.find_elements_by_class_name("btn")
@@ -141,8 +143,7 @@ class InternetChecker(object):
 
         return
 
-        
-    def __goto_modem_status(self):
+    def _goto_modem_status(self):
         logger.info("Going to modem status")
 
         # Check if logged in 
@@ -152,7 +153,7 @@ class InternetChecker(object):
         if (not self.logged_in):
             logger.info("Not logged in, attempting to login")
 
-            self.__login()
+            self._login()
 
         # Have the driver get the modem status page
         self.driver.get(config.ROUTER_URL + config.MODEM_STATUS_LINK_HREF)
@@ -160,17 +161,15 @@ class InternetChecker(object):
         return self.logged_in
 
 
-    def __goto_quick_setup(self):
+    def _goto_quick_setup(self):
         logger.info("Going to quick setup")
         pass
 
-
-    def __goto_wireless_setup(self):
+    def _goto_wireless_setup(self):
         logger.info("Going to wireless setup")
         pass
 
-
-    def __goto_utilities(self):
+    def _goto_utilities(self):
         logger.info("Going to utilities")
 
         # Check if logged in 
@@ -186,8 +185,7 @@ class InternetChecker(object):
 
         return self.logged_in
 
-
-    def __goto_advanced_setup(self):
+    def _goto_advanced_setup(self):
         logger.info("Going to advanced setup")
         pass
 

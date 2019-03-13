@@ -1,4 +1,4 @@
-# internetChecker
+# internet-checker
 
 ## About
 I made this because the modem at my house disconnects constantly. Typically what I would do was walk to the other side of the house to turn the modem off and on again or log in to the modem via a browser and reconnect from there.
@@ -8,4 +8,4 @@ I got tired of doing that so I made this do to it for me. It's a small script th
 ## Example
 Here it is in action:
 
-![Alt Text](./doc/internetChecker.gif)
+![Alt Text](./doc/internet-checker.gif)
